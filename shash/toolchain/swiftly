@@ -1,0 +1,44 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+if [[ "${1:-}" == "--version" ]]; then
+    echo "AeroSpace repository Swiftly compatibility shim"
+    exit 0
+fi
+
+if [[ "${1:-}" != "run" || "${2:-}" != "swift" ]]; then
+    echo "This shim only supports: swiftly run swift <arguments>" >&2
+    exit 2
+fi
+
+shift 2
+
+required_version="$(< "${PWD}/.swift-version")"
+actual_version="$(/usr/bin/xcrun swift --version 2>&1)"
+
+if [[ "${actual_version}" != *"Swift version ${required_version} "* ]]; then
+    echo "Swift ${required_version} is required, but Xcode reports:" >&2
+    echo "  ${actual_version}" >&2
+    exit 1
+fi
+
+local_state="${PWD}/.local/swift"
+local_tmp="/tmp/aerospace-swift-${UID}"
+mkdir -p \
+    "${local_state}/cache/clang" \
+    "${local_state}/cache/swiftpm" \
+    "${local_tmp}"
+
+export CLANG_MODULE_CACHE_PATH="${local_state}/cache/clang"
+export SWIFTPM_MODULECACHE_OVERRIDE="${local_state}/cache/swiftpm"
+export XDG_CACHE_HOME="${local_state}/cache"
+export TMPDIR="${local_tmp}"
+
+if [[ "${1:-}" == "build" || "${1:-}" == "test" || "${1:-}" == "package" ]]; then
+    swift_subcommand="$1"
+    shift
+    exec /usr/bin/xcrun swift "${swift_subcommand}" --disable-sandbox "$@"
+fi
+
+exec /usr/bin/xcrun swift "$@"

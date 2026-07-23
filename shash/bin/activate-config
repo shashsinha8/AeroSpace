@@ -1,0 +1,28 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+repo_root="${0:A:h:h:h}"
+export PATH="${repo_root}/.local/toolchain/bin:${PATH}"
+config_path="${repo_root}/shash/config/aerospace.toml"
+active_path="${HOME}/.aerospace.toml"
+
+if [[ -L "${active_path}" ]] && [[ "$(readlink "${active_path}")" == "${config_path}" ]]; then
+    echo "Already active: ${active_path} -> ${config_path}"
+    exit 0
+fi
+
+if [[ -e "${active_path}" || -L "${active_path}" ]]; then
+    timestamp="$(date +%Y%m%d-%H%M%S)"
+    backup_path="${active_path}.backup-${timestamp}"
+    mv "${active_path}" "${backup_path}"
+    echo "Backed up the previous config to ${backup_path}"
+fi
+
+ln -s "${config_path}" "${active_path}"
+echo "Activated ${active_path} -> ${config_path}"
+
+if command -v aerospace >/dev/null 2>&1; then
+    aerospace reload-config
+    echo "Reloaded the running AeroSpace config."
+fi

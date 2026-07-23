@@ -1,0 +1,21 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+repo_root="${0:A:h:h:h}"
+export PATH="${repo_root}/.local/toolchain/bin:${PATH}"
+config_path="${repo_root}/shash/config/aerospace.toml"
+
+if pgrep -x AeroSpace >/dev/null 2>&1 || pgrep -x AeroSpaceApp >/dev/null 2>&1; then
+    cat >&2 <<'EOF'
+AeroSpace is already running.
+
+Quit the installed AeroSpace app from its menu-bar icon before launching the
+debug server. This prevents two window managers from competing for hotkeys and
+the AeroSpace socket.
+EOF
+    exit 1
+fi
+
+cd "${repo_root}"
+exec ./run-debug.sh --config-path "${config_path}"

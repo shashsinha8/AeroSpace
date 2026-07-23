@@ -1,0 +1,40 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+repo_root="${0:A:h:h:h}"
+export PATH="${repo_root}/.local/toolchain/bin:${PATH}"
+cd "${repo_root}"
+
+if [[ "${1:-}" != "--replace-stable" ]]; then
+    cat >&2 <<'EOF'
+This installs a release build and replaces the Homebrew AeroSpace installation.
+
+Run it explicitly as:
+  ./shash/bin/install-custom --replace-stable
+EOF
+    exit 2
+fi
+
+if ! git diff --quiet || ! git diff --cached --quiet; then
+    echo "Refusing to run the upstream release installer with a dirty worktree." >&2
+    exit 1
+fi
+
+if ! security find-identity -v -p codesigning |
+    grep -Fq '"aerospace-codesign-certificate"'
+then
+    cat >&2 <<'EOF'
+Missing the self-signed code-signing identity named:
+  aerospace-codesign-certificate
+
+Create it in Keychain Access using:
+  Certificate Assistant > Create a Certificate
+  Identity Type: Self-Signed Root
+  Certificate Type: Code Signing
+EOF
+    exit 1
+fi
+
+./test.sh
+exec ./install-from-sources.sh

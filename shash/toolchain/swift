@@ -1,0 +1,6 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+toolchain_dir="${0:A:h}"
+exec "${toolchain_dir}/swiftly" run swift "$@"

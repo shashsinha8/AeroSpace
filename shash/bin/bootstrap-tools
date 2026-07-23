@@ -1,0 +1,52 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+repo_root="${0:A:h:h:h}"
+install_prefix="${repo_root}/.local/toolchain"
+bash_binary="${install_prefix}/bin/bash"
+bash_version="5.2.37"
+bash_archive_sha256="9599b22ecd1d5787ad7d3b7bf0c59f312b3396d1e281175dd1f8a4014da621ff"
+
+mkdir -p "${install_prefix}/bin"
+ln -sfn "../../../shash/toolchain/swiftly" "${install_prefix}/bin/swiftly"
+ln -sfn "../../../shash/toolchain/swift" "${install_prefix}/bin/swift"
+
+if [[ -x "${bash_binary}" ]] &&
+    "${bash_binary}" --version | head -1 | grep -Fq "version 5."
+then
+    echo "Repository Bash is already installed:"
+    "${bash_binary}" --version | head -1
+    exit 0
+fi
+
+build_dir="$(mktemp -d /tmp/aerospace-bash-build.XXXXXX)"
+cleanup() {
+    if [[ "${build_dir}" == /tmp/aerospace-bash-build.* ]]; then
+        rm -rf "${build_dir}"
+    fi
+}
+trap cleanup EXIT
+
+archive_path="${build_dir}/bash.tar.gz"
+curl \
+    --fail \
+    --location \
+    --silent \
+    --show-error \
+    "https://ftp.gnu.org/gnu/bash/bash-${bash_version}.tar.gz" \
+    --output "${archive_path}"
+
+actual_sha256="$(shasum -a 256 "${archive_path}" | awk '{print $1}')"
+if [[ "${actual_sha256}" != "${bash_archive_sha256}" ]]; then
+    echo "Bash archive checksum mismatch." >&2
+    exit 1
+fi
+
+tar -xzf "${archive_path}" -C "${build_dir}"
+cd "${build_dir}/bash-${bash_version}"
+./configure --prefix="${install_prefix}" --without-bash-malloc
+make -j"$(sysctl -n hw.logicalcpu)"
+make install
+
+"${bash_binary}" --version | head -1

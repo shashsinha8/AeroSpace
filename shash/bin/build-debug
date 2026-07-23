@@ -1,0 +1,9 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+repo_root="${0:A:h:h:h}"
+export PATH="${repo_root}/.local/toolchain/bin:${PATH}"
+cd "${repo_root}"
+
+exec ./build-debug.sh

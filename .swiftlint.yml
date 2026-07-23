@@ -1,5 +1,6 @@
 excluded:
   - .build
+  - .local
   - xcode
 
 # https://realm.github.io/SwiftLint/rule-directory.html

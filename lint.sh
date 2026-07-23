@@ -10,7 +10,7 @@ if grep -E '( Task\.init| Task\s*\{| Task\()' -r ./Sources; then
 fi
 
 ./script/install-dep.sh --swiftlint
-./.deps/swiftlint/swiftlint lint --quiet
+./.deps/swiftlint/swiftlint lint --quiet --cache-path .local/swiftlint-cache
 
 if sw_vers -productVersion | grep -q "^14"; then # macOS 14
     # dyld[6263]: Library not loaded: /usr/lib/swift/libswiftSynchronization.dylib
