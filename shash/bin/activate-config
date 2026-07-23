@@ -10,21 +10,24 @@ active_path="${HOME}/.aerospace.toml"
 if command -v aerospace >/dev/null 2>&1; then
     client_version="$(
         aerospace --version 2>/dev/null |
-            sed -nE 's/^aerospace CLI client version: ([0-9]+)\.([0-9]+).*/\1 \2/p' |
+            sed -nE 's/^aerospace CLI client version: (.+)$/\1/p' |
             head -1
     )"
-    version_parts=(${=client_version})
-    if (( ${#version_parts} == 2 )) &&
-        (( version_parts[1] == 0 && version_parts[2] < 20 ))
-    then
-        cat >&2 <<EOF
+
+    if [[ "${client_version}" != *-SNAPSHOT* ]]; then
+        version_parts=(${(s:.:)client_version})
+        if (( ${#version_parts} >= 2 )) &&
+            (( version_parts[1] == 0 && version_parts[2] < 20 ))
+        then
+            cat >&2 <<EOF
 The repository config requires AeroSpace 0.20 or newer, but the installed CLI
-reports ${version_parts[1]}.${version_parts[2]}.
+reports ${client_version}.
 
 Upgrade AeroSpace or install the custom build before activating this config.
 No files were changed.
 EOF
-        exit 1
+            exit 1
+        fi
     fi
 fi
 
