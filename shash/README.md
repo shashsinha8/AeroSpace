@@ -30,7 +30,9 @@ Activate it with:
 ```
 
 The activation script moves an existing `~/.aerospace.toml` to a timestamped
-backup, creates a symlink, and reloads AeroSpace.
+backup, creates a symlink, and reloads AeroSpace. The repository config uses
+`config-version = 2`, so the script refuses without changing anything when the
+installed AeroSpace version is older than 0.20.
 
 ## Development loop
 
