@@ -1,0 +1,185 @@
+# Shash's AeroSpace configuration.
+# This file is the source of truth for ~/.aerospace.toml.
+
+# Opt in to current configuration semantics. With version 2, persistent
+# workspaces must be declared explicitly.
+config-version = 2
+persistent-workspaces = [
+    '1', '2', '3', '4', '5', '6', '7', '8', '9',
+    's', 'c', 'v', 'm', 'n', 'p', 't', 'z',
+]
+
+# Start AeroSpace at login.
+start-at-login = true
+
+# Normalizations. See: https://nikitabobko.github.io/AeroSpace/guide#normalization
+enable-normalization-flatten-containers = true
+enable-normalization-opposite-orientation-for-nested-containers = true
+
+# See: https://nikitabobko.github.io/AeroSpace/guide#layouts
+accordion-padding = 30
+default-root-container-layout = 'tiles'
+default-root-container-orientation = 'auto'
+
+# Mouse follows focus when the focused monitor changes.
+on-focused-monitor-changed = ['move-mouse monitor-lazy-center']
+
+# Keep the native macOS Hide application behavior.
+automatically-unhide-macos-hidden-apps = false
+
+[key-mapping]
+    preset = 'qwerty'
+
+[gaps]
+    inner.horizontal = 10
+    inner.vertical =   10
+    outer.left =       10
+    outer.bottom =     10
+    outer.top =        10
+    outer.right =      10
+
+[mode.main.binding]
+    alt-f = 'fullscreen'
+
+    alt-e = 'layout tiles horizontal vertical'
+    alt-comma = 'layout accordion horizontal vertical'
+
+    alt-h = 'focus left'
+    alt-j = 'focus down'
+    alt-k = 'focus up'
+    alt-l = 'focus right'
+
+    alt-shift-h = 'move left'
+    alt-shift-j = 'move down'
+    alt-shift-k = 'move up'
+    alt-shift-l = 'move right'
+
+    alt-shift-minus = 'resize smart -50'
+    alt-shift-equal = 'resize smart +50'
+
+    alt-1 = 'workspace 1'
+    alt-2 = 'workspace 2'
+    alt-3 = 'workspace 3'
+    alt-4 = 'workspace 4'
+    alt-5 = 'workspace 5'
+    alt-6 = 'workspace 6'
+    alt-7 = 'workspace 7'
+    alt-8 = 'workspace 8'
+    alt-9 = 'workspace 9'
+    alt-s = 'workspace s'
+    alt-c = 'workspace c'
+    alt-v = 'workspace v'
+    alt-m = 'workspace m'
+    alt-n = 'workspace n'
+    alt-p = 'workspace p'
+    alt-t = 'workspace t'
+    alt-z = 'workspace z'
+
+    alt-shift-1 = 'move-node-to-workspace 1'
+    alt-shift-2 = 'move-node-to-workspace 2'
+    alt-shift-3 = 'move-node-to-workspace 3'
+    alt-shift-4 = 'move-node-to-workspace 4'
+    alt-shift-5 = 'move-node-to-workspace 5'
+    alt-shift-6 = 'move-node-to-workspace 6'
+    alt-shift-7 = 'move-node-to-workspace 7'
+    alt-shift-8 = 'move-node-to-workspace 8'
+    alt-shift-9 = 'move-node-to-workspace 9'
+    alt-shift-s = 'move-node-to-workspace s'
+    alt-shift-v = 'move-node-to-workspace v'
+    alt-shift-c = 'move-node-to-workspace c'
+    alt-shift-m = 'move-node-to-workspace m'
+    alt-shift-n = 'move-node-to-workspace n'
+    alt-shift-p = 'move-node-to-workspace p'
+    alt-shift-t = 'move-node-to-workspace t'
+    alt-shift-z = 'move-node-to-workspace z'
+
+    alt-tab = 'workspace-back-and-forth'
+    alt-shift-tab = 'move-workspace-to-monitor --wrap-around next'
+
+    alt-shift-semicolon = 'mode service'
+
+[mode.service.binding]
+    esc = ['reload-config', 'mode main']
+    r = ['flatten-workspace-tree', 'mode main']
+    f = ['layout floating tiling', 'mode main']
+    backspace = ['close-all-windows-but-current', 'mode main']
+
+    # Sticky windows are not yet supported upstream:
+    # https://github.com/nikitabobko/AeroSpace/issues/2
+    # s = ['layout sticky tiling', 'mode main']
+
+    alt-shift-h = ['join-with left', 'mode main']
+    alt-shift-j = ['join-with down', 'mode main']
+    alt-shift-k = ['join-with up', 'mode main']
+    alt-shift-l = ['join-with right', 'mode main']
+
+    down = 'volume down'
+    up = 'volume up'
+    shift-down = ['volume set 0', 'mode main']
+
+[workspace-to-monitor-force-assignment]
+    1 = 1
+    2 = 1
+    3 = 1
+    4 = 1
+    5 = 1
+    6 = 2
+    7 = 2
+    8 = 3
+    9 = 3
+    s = 2
+    v = 2
+    c = 2
+    m = 1
+    n = 1
+    p = 2
+    t = 1
+    z = 1
+
+[[on-window-detected]]
+    if.app-id = 'app.zen-browser.zen'
+    run = 'move-node-to-workspace s'
+
+[[on-window-detected]]
+    if.app-id = 'com.microsoft.VSCode'
+    run = 'move-node-to-workspace v'
+
+[[on-window-detected]]
+    if.app-id = 'com.todesktop.230313mzl4w4u92'
+    run = 'move-node-to-workspace v'
+
+[[on-window-detected]]
+    if.app-id = 'com.mitchellh.ghostty'
+    run = 'move-node-to-workspace t'
+
+[[on-window-detected]]
+    if.app-id = 'net.sourceforge.skim-app.skim'
+    run = 'move-node-to-workspace t'
+
+[[on-window-detected]]
+    if.app-id = 'com.bdash.sioyek'
+    run = 'move-node-to-workspace t'
+
+[[on-window-detected]]
+    if.app-id = 'com.apple.iCal'
+    run = 'move-node-to-workspace m'
+
+[[on-window-detected]]
+    if.app-id = 'com.apple.Music'
+    run = 'move-node-to-workspace m'
+
+[[on-window-detected]]
+    if.app-id = 'com.apple.Notes'
+    run = 'move-node-to-workspace m'
+
+[[on-window-detected]]
+    if.app-id = 'org.whispersystems.signal-desktop'
+    run = 'move-node-to-workspace 9'
+
+[[on-window-detected]]
+    if.app-id = 'com.pixelmatorteam.pixelmator.touch.x.photo'
+    run = 'move-node-to-workspace p'
+
+[[on-window-detected]]
+    if.window-title-regex-substring = 'Figure'
+    run = 'layout floating'

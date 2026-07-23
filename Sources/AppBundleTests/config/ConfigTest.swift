@@ -4,6 +4,16 @@ import XCTest
 
 @MainActor
 final class ConfigTest: XCTestCase {
+    func testParseShashConfig() {
+        let toml = try! String(
+            contentsOf: projectRoot.appending(component: "shash/config/aerospace.toml"),
+            encoding: .utf8,
+        )
+        let result = parseConfig(toml)
+        assertEquals(result.errors, [])
+        assertEquals(result.warnings, [])
+    }
+
     func testParseI3Config() {
         let toml = try! String(contentsOf: projectRoot.appending(component: "docs/config-examples/i3-like-config-example.toml"), encoding: .utf8)
         let result = parseConfig(toml)
