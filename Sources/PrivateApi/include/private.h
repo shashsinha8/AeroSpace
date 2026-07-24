@@ -26,8 +26,4 @@
 // func _AXUIElementGetWindow(_ axUiElement: AXUIElement, _ id: inout CGWindowID) -> AXError
 AXError _AXUIElementGetWindow(AXUIElementRef element, uint32_t *identifier);
 
-/// Changes the WindowServer level of any application's window.
-/// Returns false when the private SkyLight API is unavailable or rejects the request.
-bool aerospaceSetWindowLevel(uint32_t windowId, int32_t level);
-
 #endif

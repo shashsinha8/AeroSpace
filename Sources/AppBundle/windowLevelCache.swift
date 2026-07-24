@@ -1,41 +1,9 @@
 import CoreGraphics
 import Common
 import Foundation
-import PrivateApi
 
 @MainActor
 private var cache: [UInt32: MacOsWindowLevel] = [:]
-
-@MainActor
-@discardableResult
-func setStickyWindowLevel(_ window: Window, sticky: Bool) -> Bool {
-    if isUnitTest {
-        window.preStickyWindowLevel = sticky ? 0 : nil
-        return true
-    }
-
-    if sticky {
-        if window.preStickyWindowLevel == nil {
-            window.preStickyWindowLevel = getWindowLevel(for: window.windowId)?.rawValue
-                ?? Int(CGWindowLevelForKey(.normalWindow))
-        }
-        // Match picture-in-picture behavior: above application floating and
-        // modal-panel windows, but below menus and system overlays.
-        let level = CGWindowLevelForKey(.statusWindow)
-        guard aerospaceSetWindowLevel(window.windowId, level) else {
-            window.preStickyWindowLevel = nil
-            return false
-        }
-        cache[window.windowId] = .new(windowLevel: Int(level))
-        return true
-    }
-
-    guard let previousLevel = window.preStickyWindowLevel else { return true }
-    guard aerospaceSetWindowLevel(window.windowId, Int32(previousLevel)) else { return false }
-    window.preStickyWindowLevel = nil
-    cache[window.windowId] = .new(windowLevel: previousLevel)
-    return true
-}
 
 @MainActor
 func getWindowLevel(for windowId: UInt32) -> MacOsWindowLevel? {

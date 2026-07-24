@@ -60,7 +60,7 @@ struct LayoutCommand: Command {
             case .tiling:
                 guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
                 if window.isSticky {
-                    _ = setStickyWindowLevel(window, sticky: false)
+                    _ = await setStickyWindowOverlay(window, sticky: false)
                 }
                 window.isSticky = false
                 switch node {
@@ -80,7 +80,7 @@ struct LayoutCommand: Command {
                 guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
                 let ownerWorkspace = window.nodeWorkspace ?? target.workspace
                 if window.isSticky {
-                    _ = setStickyWindowLevel(window, sticky: false)
+                    _ = await setStickyWindowOverlay(window, sticky: false)
                 }
                 window.isSticky = false
                 window.bindAsFloatingWindow(to: ownerWorkspace)
@@ -88,10 +88,12 @@ struct LayoutCommand: Command {
                 return .succ
             case .sticky:
                 guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
+                if let error = await setStickyWindowOverlay(window, sticky: true) {
+                    return .fail(io.err(error))
+                }
                 let ownerWorkspace = window.nodeWorkspace ?? target.workspace
                 window.bindAsFloatingWindow(to: ownerWorkspace)
                 window.isSticky = true
-                _ = setStickyWindowLevel(window, sticky: true)
                 if let size = window.lastFloatingSize { window.setAxFrame(nil, size) }
                 return .succ
         }

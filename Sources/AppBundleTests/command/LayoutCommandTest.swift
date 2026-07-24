@@ -242,7 +242,6 @@ final class LayoutCommandTest: XCTestCase {
 
         await parseCommand("layout sticky tiling").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertTrue(window.isSticky)
-        assertEquals(window.preStickyWindowLevel, 0)
         assertEquals(ownerWorkspace.floatingWindows.map(\.windowId), [1])
 
         let activeWorkspace = Workspace.get(byName: "b")
@@ -254,7 +253,6 @@ final class LayoutCommandTest: XCTestCase {
 
         await parseCommand("layout sticky tiling").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertFalse(window.isSticky)
-        assertNil(window.preStickyWindowLevel)
         assertEquals(ownerWorkspace.floatingWindows, [])
         assertEquals(ownerWorkspace.rootTilingContainer.layoutDescription, .h_tiles([.window(1)]))
         assertTrue(mainMonitor.activeWorkspace === activeWorkspace)

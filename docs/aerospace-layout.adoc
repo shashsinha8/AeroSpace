@@ -50,7 +50,11 @@ Possible values:
 * `tiles|accordion` - Change tiling layout but preserve orientation
 * `horizontal|vertical` - Change orientation but preserve layout
 * `tiling|floating|sticky` - Change a window between tiling, floating, and sticky modes.
-  Sticky windows float and remain visible when switching workspaces on their current monitor.
+  Sticky windows float, remain visible when switching workspaces on their current monitor,
+  and are mirrored in an always-on-top overlay. Click the overlay to activate the
+  real window for native interaction and resizing; the overlay returns when focus
+  leaves that window. macOS will ask for Screen Recording permission the first time
+  sticky mode is used.
 +
 If several `<target-layout>` are supplied, then the first one that doesn't describe the currently active layout is applied.
 

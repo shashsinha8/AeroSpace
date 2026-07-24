@@ -85,6 +85,7 @@ struct FrozenWorkspace: Sendable {
             .singleOrNil()?
             .setActiveWorkspace(Workspace.get(byName: monitor.visibleWorkspace))
     }
+    await syncStickyWindowOverlays()
     return true
 }
 

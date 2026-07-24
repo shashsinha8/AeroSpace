@@ -13,4 +13,5 @@
         lastKnownNativeFocusedWindowId = nativeFocused?.windowId
     }
     nativeFocused?.macAppUnsafe.lastNativeFocusedWindowId = nativeFocused?.windowId
+    syncStickyWindowOverlayVisibility()
 }
