@@ -1,8 +1,23 @@
 @testable import AppBundle
 import AppKit
+import CoreVideo
 import XCTest
 
 final class StickyWindowOverlayGeometryTest: XCTestCase {
+    func testStreamConfigurationPreservesWindowTransparency() {
+        let configuration = makeStickyWindowStreamConfiguration(
+            for: CGSize(width: 600, height: 400),
+            scale: 2,
+        )
+
+        XCTAssertEqual(configuration.width, 1200)
+        XCTAssertEqual(configuration.height, 800)
+        XCTAssertEqual(configuration.pixelFormat, kCVPixelFormatType_32BGRA)
+        if #available(macOS 14.0, *) {
+            XCTAssertFalse(configuration.shouldBeOpaque)
+        }
+    }
+
     func testFullSurfaceMapsDirectlyToDestination() {
         let geometry = StickyWindowCaptureGeometry(
             surfaceSize: CGSize(width: 1200, height: 800),

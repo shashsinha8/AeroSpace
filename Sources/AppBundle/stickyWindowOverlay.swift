@@ -3,10 +3,15 @@ import AppKit
 import Common
 import CoreGraphics
 import CoreMedia
+import CoreVideo
 import ScreenCaptureKit
 
 @MainActor
 private let stickyWindowOverlayManager = StickyWindowOverlayManager()
+
+// SCStreamConfiguration.backgroundColor is imported as unowned(unsafe), so
+// retain the color for every stream configuration's lifetime.
+private let stickyWindowTransparentCaptureBackground = NSColor.clear.cgColor
 
 /// Creates an AeroSpace-owned, always-on-top mirror of a sticky window.
 ///
@@ -181,7 +186,7 @@ private final class StickyWindowOverlay: NSObject, SCStreamOutput {
         let captureScale = StickyWindowOverlay.backingScale(for: rect)
         self.captureScale = captureScale
 
-        let configuration = StickyWindowOverlay.makeConfiguration(
+        let configuration = makeStickyWindowStreamConfiguration(
             for: rect.size,
             scale: captureScale,
         )
@@ -197,6 +202,7 @@ private final class StickyWindowOverlay: NSObject, SCStreamOutput {
         // the image or add another layer of aspect-fit letterboxing.
         displayLayer.videoGravity = .resize
         displayLayer.backgroundColor = NSColor.clear.cgColor
+        displayLayer.isOpaque = false
         self.displayLayer = displayLayer
 
         let contentView = StickyWindowOverlayView(
@@ -258,7 +264,7 @@ private final class StickyWindowOverlay: NSObject, SCStreamOutput {
         guard rect.size != sourceSize || newCaptureScale != captureScale else { return }
         sourceSize = rect.size
         captureScale = newCaptureScale
-        let newConfiguration = StickyWindowOverlay.makeConfiguration(
+        let newConfiguration = makeStickyWindowStreamConfiguration(
             for: rect.size,
             scale: newCaptureScale,
         )
@@ -293,7 +299,7 @@ private final class StickyWindowOverlay: NSObject, SCStreamOutput {
         let sampleBuffer = SendableSampleBuffer(sampleBuffer)
         MainActor.assumeIsolated {
             guard sampleBuffer.value.isValid,
-                  CMSampleBufferGetImageBuffer(sampleBuffer.value) != nil,
+                  let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer.value),
                   !isStopping
             else {
                 return
@@ -303,28 +309,10 @@ private final class StickyWindowOverlay: NSObject, SCStreamOutput {
             }
             contentView.updateCaptureGeometry(
                 StickyWindowCaptureGeometry.from(sampleBuffer: sampleBuffer.value),
+                sourceHasAlpha: CVPixelBufferGetPixelFormatType(imageBuffer) == kCVPixelFormatType_32BGRA,
             )
             displayLayer.enqueue(sampleBuffer.value)
         }
-    }
-
-    private static func makeConfiguration(for size: CGSize, scale: CGFloat) -> SCStreamConfiguration {
-        let configuration = SCStreamConfiguration()
-        configuration.width = max(Int(size.width * scale), 2)
-        configuration.height = max(Int(size.height * scale), 2)
-        configuration.minimumFrameInterval = CMTime(value: 1, timescale: 60)
-        configuration.queueDepth = 3
-        configuration.showsCursor = true
-        configuration.capturesAudio = false
-        configuration.scalesToFit = true
-        if #available(macOS 14.0, *) {
-            // Single-window shadows otherwise occupy transparent padding in the
-            // IOSurface. AeroSpace supplies its own native panel shadow.
-            configuration.ignoreShadowsSingleWindow = true
-            configuration.shouldBeOpaque = false
-            configuration.preservesAspectRatio = true
-        }
-        return configuration
     }
 
     private static func backingScale(for rect: Rect) -> CGFloat {
@@ -344,6 +332,30 @@ private final class StickyWindowOverlay: NSObject, SCStreamOutput {
             height: rect.height,
         )
     }
+}
+
+/// Creates a single-window stream whose pixels retain the source window's
+/// transparency. ScreenCaptureKit otherwise defaults to a bi-planar YUV format
+/// that cannot represent alpha, turning rounded window corners black.
+func makeStickyWindowStreamConfiguration(for size: CGSize, scale: CGFloat) -> SCStreamConfiguration {
+    let configuration = SCStreamConfiguration()
+    configuration.width = max(Int(size.width * scale), 2)
+    configuration.height = max(Int(size.height * scale), 2)
+    configuration.minimumFrameInterval = CMTime(value: 1, timescale: 60)
+    configuration.queueDepth = 3
+    configuration.showsCursor = true
+    configuration.capturesAudio = false
+    configuration.scalesToFit = true
+    configuration.pixelFormat = kCVPixelFormatType_32BGRA
+    unsafe configuration.backgroundColor = stickyWindowTransparentCaptureBackground
+    if #available(macOS 14.0, *) {
+        // Single-window shadows otherwise occupy transparent padding in the
+        // IOSurface. AeroSpace supplies its own native panel shadow.
+        configuration.ignoreShadowsSingleWindow = true
+        configuration.shouldBeOpaque = false
+        configuration.preservesAspectRatio = true
+    }
+    return configuration
 }
 
 extension CGRect {
@@ -445,12 +457,13 @@ struct StickyWindowCaptureGeometry: Equatable {
 
 @MainActor
 private final class StickyWindowOverlayView: NSView {
-    private static let cornerRadius: CGFloat = 10
+    private static let fallbackCornerRadius: CGFloat = 10
 
     private let onActivate: @MainActor () -> Void
-    private let roundedContentLayer = CALayer()
+    private let contentLayer = CALayer()
     private let displayLayer: AVSampleBufferDisplayLayer
     private var captureGeometry: StickyWindowCaptureGeometry?
+    private var sourceHasAlpha: Bool?
 
     init(
         frame: CGRect,
@@ -463,13 +476,15 @@ private final class StickyWindowOverlayView: NSView {
 
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
+        layer?.isOpaque = false
 
-        roundedContentLayer.cornerRadius = Self.cornerRadius
-        roundedContentLayer.cornerCurve = .continuous
-        roundedContentLayer.masksToBounds = true
-        roundedContentLayer.backgroundColor = NSColor.clear.cgColor
-        roundedContentLayer.addSublayer(displayLayer)
-        layer?.addSublayer(roundedContentLayer)
+        contentLayer.cornerRadius = Self.fallbackCornerRadius
+        contentLayer.cornerCurve = .continuous
+        contentLayer.masksToBounds = true
+        contentLayer.backgroundColor = NSColor.clear.cgColor
+        contentLayer.isOpaque = false
+        contentLayer.addSublayer(displayLayer)
+        layer?.addSublayer(contentLayer)
     }
 
     @available(*, unavailable)
@@ -482,9 +497,10 @@ private final class StickyWindowOverlayView: NSView {
         updateLayerFrames()
     }
 
-    func updateCaptureGeometry(_ geometry: StickyWindowCaptureGeometry) {
-        guard geometry != captureGeometry else { return }
+    func updateCaptureGeometry(_ geometry: StickyWindowCaptureGeometry, sourceHasAlpha: Bool) {
+        guard geometry != captureGeometry || sourceHasAlpha != self.sourceHasAlpha else { return }
         captureGeometry = geometry
+        self.sourceHasAlpha = sourceHasAlpha
         updateLayerFrames()
     }
 
@@ -504,7 +520,11 @@ private final class StickyWindowOverlayView: NSView {
     private func updateLayerFrames() {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        roundedContentLayer.frame = bounds
+        // BGRA frames retain each source window's exact alpha silhouette, so a
+        // guessed radius would only distort app-specific corners. Keep the old
+        // rounded clip solely as a defensive fallback for opaque pixel formats.
+        contentLayer.cornerRadius = sourceHasAlpha == true ? 0 : Self.fallbackCornerRadius
+        contentLayer.frame = bounds
         displayLayer.frame = captureGeometry?.displayLayerFrame(in: bounds.size) ?? bounds
         CATransaction.commit()
     }
