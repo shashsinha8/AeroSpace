@@ -164,9 +164,11 @@ private final class StickyWindowOverlayManager {
 @MainActor
 private final class StickyWindowOverlay: NSObject, SCStreamOutput {
     private let panel: NSPanel
+    private let contentView: StickyWindowOverlayView
     private let displayLayer: AVSampleBufferDisplayLayer
     private let stream: SCStream
     private var sourceSize: CGSize
+    private var captureScale: CGFloat
     private var isStopping = false
     private var isSourceActive: Bool?
 
@@ -176,10 +178,12 @@ private final class StickyWindowOverlay: NSObject, SCStreamOutput {
         onActivate: @escaping @MainActor () -> Void,
     ) async throws {
         self.sourceSize = rect.size
+        let captureScale = StickyWindowOverlay.backingScale(for: rect)
+        self.captureScale = captureScale
 
         let configuration = StickyWindowOverlay.makeConfiguration(
             for: rect.size,
-            scale: StickyWindowOverlay.backingScale(for: rect),
+            scale: captureScale,
         )
         self.stream = SCStream(
             filter: SCContentFilter(desktopIndependentWindow: capturedWindow),
@@ -188,16 +192,19 @@ private final class StickyWindowOverlay: NSObject, SCStreamOutput {
         )
 
         let displayLayer = AVSampleBufferDisplayLayer()
-        displayLayer.videoGravity = .resizeAspect
+        // StickyWindowOverlayView sizes this layer with the frame's contentRect.
+        // Its frame keeps the IOSurface aspect ratio, so .resize doesn't distort
+        // the image or add another layer of aspect-fit letterboxing.
+        displayLayer.videoGravity = .resize
         displayLayer.backgroundColor = NSColor.clear.cgColor
         self.displayLayer = displayLayer
 
         let contentView = StickyWindowOverlayView(
             frame: CGRect(origin: .zero, size: rect.size),
+            displayLayer: displayLayer,
             onActivate: onActivate,
         )
-        contentView.wantsLayer = true
-        contentView.layer = displayLayer
+        self.contentView = contentView
 
         let panel = NSPanel(
             contentRect: StickyWindowOverlay.appKitFrame(for: rect),
@@ -210,7 +217,10 @@ private final class StickyWindowOverlay: NSObject, SCStreamOutput {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.backgroundColor = .clear
         panel.isOpaque = false
-        panel.hasShadow = false
+        // AppKit renders this outside the window frame, preserving exact source
+        // alignment and mouse hit-testing while giving the rounded window a
+        // native, compositor-backed shadow.
+        panel.hasShadow = true
         panel.hidesOnDeactivate = false
         panel.ignoresMouseEvents = false
         panel.animationBehavior = .none
@@ -235,19 +245,22 @@ private final class StickyWindowOverlay: NSObject, SCStreamOutput {
         panel.orderOut(nil)
         displayLayer.flushAndRemoveImage()
         try? stream.removeStreamOutput(self, type: .screen)
-        Task { [stream] in
+        Task.startUnstructured { [stream] in
             try? await stream.stopCapture()
         }
     }
 
     func syncFrame(_ rect: Rect) async {
         panel.setFrame(StickyWindowOverlay.appKitFrame(for: rect), display: true)
-        guard rect.size != sourceSize else { return }
+        panel.invalidateShadow()
 
+        let newCaptureScale = StickyWindowOverlay.backingScale(for: rect)
+        guard rect.size != sourceSize || newCaptureScale != captureScale else { return }
         sourceSize = rect.size
+        captureScale = newCaptureScale
         let newConfiguration = StickyWindowOverlay.makeConfiguration(
             for: rect.size,
-            scale: StickyWindowOverlay.backingScale(for: rect),
+            scale: newCaptureScale,
         )
         do {
             try await stream.updateConfiguration(newConfiguration)
@@ -288,6 +301,9 @@ private final class StickyWindowOverlay: NSObject, SCStreamOutput {
             if displayLayer.status == .failed {
                 displayLayer.flush()
             }
+            contentView.updateCaptureGeometry(
+                StickyWindowCaptureGeometry.from(sampleBuffer: sampleBuffer.value),
+            )
             displayLayer.enqueue(sampleBuffer.value)
         }
     }
@@ -300,12 +316,24 @@ private final class StickyWindowOverlay: NSObject, SCStreamOutput {
         configuration.queueDepth = 3
         configuration.showsCursor = true
         configuration.capturesAudio = false
+        configuration.scalesToFit = true
+        if #available(macOS 14.0, *) {
+            // Single-window shadows otherwise occupy transparent padding in the
+            // IOSurface. AeroSpace supplies its own native panel shadow.
+            configuration.ignoreShadowsSingleWindow = true
+            configuration.shouldBeOpaque = false
+            configuration.preservesAspectRatio = true
+        }
         return configuration
     }
 
     private static func backingScale(for rect: Rect) -> CGFloat {
         let appKitRect = appKitFrame(for: rect)
-        return NSScreen.screens.first(where: { $0.frame.intersects(appKitRect) })?.backingScaleFactor ?? 2
+        return NSScreen.screens
+            .max(by: {
+                $0.frame.intersection(appKitRect).area < $1.frame.intersection(appKitRect).area
+            })?
+            .backingScaleFactor ?? 2
     }
 
     private static func appKitFrame(for rect: Rect) -> CGRect {
@@ -318,18 +346,146 @@ private final class StickyWindowOverlay: NSObject, SCStreamOutput {
     }
 }
 
+extension CGRect {
+    fileprivate var area: CGFloat {
+        isNull || isEmpty ? 0 : width * height
+    }
+}
+
+/// Maps ScreenCaptureKit's IOSurface geometry into the visible overlay.
+///
+/// Apple documents `contentRect` as the region of interest to crop when
+/// displaying a single-window stream. `boundingRect` is the minimum box around
+/// all captured windows, so it is only a fallback when content metadata is
+/// absent. Rectangles use IOSurface coordinates with a top-left origin.
+struct StickyWindowCaptureGeometry: Equatable {
+    let surfaceSize: CGSize
+    let contentRect: CGRect?
+    let boundingRect: CGRect?
+
+    var cropRect: CGRect {
+        validRect(contentRect) ?? validRect(boundingRect) ?? CGRect(origin: .zero, size: surfaceSize)
+    }
+
+    func displayLayerFrame(in destinationSize: CGSize) -> CGRect {
+        guard isValid(size: destinationSize) else { return .zero }
+
+        let cropRect = cropRect
+        let scale = max(
+            destinationSize.width / cropRect.width,
+            destinationSize.height / cropRect.height,
+        )
+        let visibleSize = CGSize(
+            width: cropRect.width * scale,
+            height: cropRect.height * scale,
+        )
+        let centeringOffset = CGPoint(
+            x: (destinationSize.width - visibleSize.width) / 2,
+            y: (destinationSize.height - visibleSize.height) / 2,
+        )
+
+        // ScreenCaptureKit metadata is top-left based while Core Animation
+        // layer frames are bottom-left based.
+        let surfacePaddingBelowContent = surfaceSize.height - cropRect.maxY
+        return CGRect(
+            x: centeringOffset.x - cropRect.minX * scale,
+            y: centeringOffset.y - surfacePaddingBelowContent * scale,
+            width: surfaceSize.width * scale,
+            height: surfaceSize.height * scale,
+        )
+    }
+
+    private func validRect(_ rect: CGRect?) -> CGRect? {
+        guard let rect, isValid(size: surfaceSize), isValid(size: rect.size) else { return nil }
+        let surfaceBounds = CGRect(origin: .zero, size: surfaceSize)
+        let intersection = rect.standardized.intersection(surfaceBounds)
+        guard isValid(size: intersection.size) else { return nil }
+        return intersection
+    }
+
+    private func isValid(size: CGSize) -> Bool {
+        size.width.isFinite && size.height.isFinite && size.width > 0 && size.height > 0
+    }
+
+    static func from(sampleBuffer: CMSampleBuffer) -> StickyWindowCaptureGeometry {
+        guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+            return StickyWindowCaptureGeometry(surfaceSize: .zero, contentRect: nil, boundingRect: nil)
+        }
+
+        let surfaceSize = CGSize(
+            width: CVPixelBufferGetWidth(imageBuffer),
+            height: CVPixelBufferGetHeight(imageBuffer),
+        )
+        guard let attachmentArray = CMSampleBufferGetSampleAttachmentsArray(
+            sampleBuffer,
+            createIfNecessary: false,
+        ) as? [[SCStreamFrameInfo: Any]],
+            let attachments = attachmentArray.first
+        else {
+            return StickyWindowCaptureGeometry(
+                surfaceSize: surfaceSize,
+                contentRect: nil,
+                boundingRect: nil,
+            )
+        }
+
+        let contentRect = attachments[.contentRect] as? CGRect
+        let boundingRect: CGRect? = if #available(macOS 14.0, *) {
+            attachments[.boundingRect] as? CGRect
+        } else {
+            nil
+        }
+        return StickyWindowCaptureGeometry(
+            surfaceSize: surfaceSize,
+            contentRect: contentRect,
+            boundingRect: boundingRect,
+        )
+    }
+}
+
 @MainActor
 private final class StickyWindowOverlayView: NSView {
-    private let onActivate: @MainActor () -> Void
+    private static let cornerRadius: CGFloat = 10
 
-    init(frame: CGRect, onActivate: @escaping @MainActor () -> Void) {
+    private let onActivate: @MainActor () -> Void
+    private let roundedContentLayer = CALayer()
+    private let displayLayer: AVSampleBufferDisplayLayer
+    private var captureGeometry: StickyWindowCaptureGeometry?
+
+    init(
+        frame: CGRect,
+        displayLayer: AVSampleBufferDisplayLayer,
+        onActivate: @escaping @MainActor () -> Void,
+    ) {
         self.onActivate = onActivate
+        self.displayLayer = displayLayer
         super.init(frame: frame)
+
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+
+        roundedContentLayer.cornerRadius = Self.cornerRadius
+        roundedContentLayer.cornerCurve = .continuous
+        roundedContentLayer.masksToBounds = true
+        roundedContentLayer.backgroundColor = NSColor.clear.cgColor
+        roundedContentLayer.addSublayer(displayLayer)
+        layer?.addSublayer(roundedContentLayer)
     }
 
     @available(*, unavailable)
     required init?(coder _: NSCoder) {
         fatalError("init(coder:) is unavailable")
+    }
+
+    override func layout() {
+        super.layout()
+        updateLayerFrames()
+    }
+
+    func updateCaptureGeometry(_ geometry: StickyWindowCaptureGeometry) {
+        guard geometry != captureGeometry else { return }
+        captureGeometry = geometry
+        updateLayerFrames()
     }
 
     override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
@@ -343,6 +499,14 @@ private final class StickyWindowOverlayView: NSView {
     override func resetCursorRects() {
         super.resetCursorRects()
         addCursorRect(bounds, cursor: .pointingHand)
+    }
+
+    private func updateLayerFrames() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        roundedContentLayer.frame = bounds
+        displayLayer.frame = captureGeometry?.displayLayerFrame(in: bounds.size) ?? bounds
+        CATransaction.commit()
     }
 }
 
