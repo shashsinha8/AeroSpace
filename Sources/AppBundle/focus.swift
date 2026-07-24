@@ -85,7 +85,10 @@ extension Window {
         }
     }
 
-    @MainActor func toLiveFocusOrNil() -> LiveFocus? { visualWorkspace.map { LiveFocus(windowOrNil: self, workspace: $0) } }
+    @MainActor func toLiveFocusOrNil() -> LiveFocus? {
+        let workspace = isSticky ? nodeMonitor?.activeWorkspace : visualWorkspace
+        return workspace.map { LiveFocus(windowOrNil: self, workspace: $0) }
+    }
 }
 extension Workspace {
     @MainActor func focusWorkspace() -> Bool { setFocus(to: toLiveFocus()) }

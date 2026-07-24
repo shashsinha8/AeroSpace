@@ -8,6 +8,9 @@ open class Window: TreeNode, Hashable {
     var isFullscreen: Bool = false
     var noOuterGapsInFullscreen: Bool = false
     var layoutReason: LayoutReason = .standard
+    /// Sticky windows remain logically attached to their owner workspace, but are
+    /// kept visible when another workspace is activated on the same monitor.
+    var isSticky: Bool = false
 
     @MainActor
     init(id: UInt32, _ app: any AbstractApp, lastFloatingSize: CGSize?, parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) {
@@ -49,7 +52,7 @@ enum LayoutReason: Equatable {
 }
 
 extension Window {
-    var isFloating: Bool { // todo drop. It will be a source of bugs when sticky is introduced
+    var isFloating: Bool {
         switch windowParentCases {
             case .floatingWindowsContainer: true
             case .macosFullscreenWindowsContainer: false

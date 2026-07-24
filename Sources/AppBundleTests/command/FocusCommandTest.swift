@@ -122,6 +122,27 @@ final class FocusCommandTest: XCTestCase {
         assertEquals(focus.windowOrNil?.windowId, 3)
     }
 
+    func testDirectionalFocusIgnoresStickyWindows() async {
+        let workspace = Workspace.get(byName: name)
+        let tiled = TestWindow.new(
+            id: 1,
+            parent: workspace.rootTilingContainer,
+            rect: Rect(topLeftX: 0, topLeftY: 0, width: 100, height: 100),
+        )
+        let sticky = TestWindow.new(
+            id: 2,
+            parent: workspace.floatingWindowsContainer,
+            rect: Rect(topLeftX: 120, topLeftY: 0, width: 100, height: 100),
+        )
+        sticky.isSticky = true
+        assertTrue(tiled.focusWindow())
+
+        await parseCommand("focus right").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        assertEquals(focus.windowOrNil?.windowId, 1)
+        assertTrue(sticky.parent === workspace.floatingWindowsContainer)
+    }
+
     func testFocusAlongTheContainerOrientation() async {
         Workspace.get(byName: name).rootTilingContainer.apply {
             assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)

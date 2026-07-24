@@ -128,7 +128,7 @@ struct FocusCommand: Command {
         mruBefore?.markAsMostRecentChild()
     }
     var _floatingWindows: [FloatingWindowData] = []
-    for window in workspace.floatingWindows {
+    for window in workspace.floatingWindows where !window.isSticky {
         // todo bug: we shouldn't access ax api here. What if the window was moved but it wasn't committed to ax yet?
         guard let center = try? await window.getCenter(.nonCancellable) else { continue }
 

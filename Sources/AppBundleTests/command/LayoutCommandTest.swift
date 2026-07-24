@@ -10,11 +10,12 @@ final class LayoutCommandTest: XCTestCase {
         assertNil(parseCommand("layout v_tiles h_tiles").errorOrNil)
         assertNil(parseCommand("layout tiling").errorOrNil)
         assertNil(parseCommand("layout floating tiling").errorOrNil)
+        assertNil(parseCommand("layout sticky tiling").errorOrNil)
         assertNil(parseCommand("layout --window-id 1 horizontal vertical").errorOrNil)
 
         testParseCommandFail(
             "layout --root accordion tiling",
-            msg: "layout command: --root and tiling|floating are incompatible",
+            msg: "layout command: --root and tiling|floating|sticky are incompatible",
             exitCode: 2,
         )
         testParseSingleCommandSucc(
@@ -229,6 +230,48 @@ final class LayoutCommandTest: XCTestCase {
         // Now it's tiled, so the same toggle picks .floating
         await parseCommand("layout floating tiling").cmdOrDie.run(.defaultEnv, .emptyStdin)
         assertEquals(workspace.floatingWindows.map(\.windowId), [1])
+    }
+
+    func testTogglesAcrossStickyAndTilingOnOriginalWorkspace() async {
+        let ownerWorkspace = Workspace.get(byName: "a")
+        let window = ownerWorkspace.rootTilingContainer.apply {
+            TestWindow.new(id: 1, parent: $0).apply {
+                assertEquals($0.focusWindow(), true)
+            }
+        }.allLeafWindowsRecursive.singleOrNil().orDie()
+
+        await parseCommand("layout sticky tiling").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertTrue(window.isSticky)
+        assertEquals(ownerWorkspace.floatingWindows.map(\.windowId), [1])
+
+        let activeWorkspace = Workspace.get(byName: "b")
+        assertTrue(activeWorkspace.focusWorkspace())
+        assertTrue(window.focusWindow())
+        assertTrue(mainMonitor.activeWorkspace === activeWorkspace)
+        assertTrue(focus.workspace === activeWorkspace)
+        assertEquals(focus.windowOrNil?.windowId, 1)
+
+        await parseCommand("layout sticky tiling").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertFalse(window.isSticky)
+        assertEquals(ownerWorkspace.floatingWindows, [])
+        assertEquals(ownerWorkspace.rootTilingContainer.layoutDescription, .h_tiles([.window(1)]))
+        assertTrue(mainMonitor.activeWorkspace === activeWorkspace)
+    }
+
+    func testMultipleStickyWindowsAndInactiveWorkspaceVisibility() async {
+        let ownerWorkspace = Workspace.get(byName: "a")
+        let window1 = TestWindow.new(id: 1, parent: ownerWorkspace.rootTilingContainer)
+        let window2 = TestWindow.new(id: 2, parent: ownerWorkspace.rootTilingContainer)
+        let ordinaryWindow = TestWindow.new(id: 3, parent: ownerWorkspace.floatingWindowsContainer)
+
+        await parseCommand("layout --window-id 1 sticky").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        await parseCommand("layout --window-id 2 sticky").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        assertTrue(window1.isSticky)
+        assertTrue(window2.isSticky)
+        assertEquals(ownerWorkspace.floatingWindows.map(\.windowId), [3, 1, 2])
+        assertEquals(windowsToHideWhenWorkspaceIsInactive(ownerWorkspace).map(\.windowId), [3])
+        assertFalse(ordinaryWindow.isSticky)
     }
 
     func testRoot_changesRootInsteadOfNestedParent() async {

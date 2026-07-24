@@ -29,9 +29,9 @@ struct LayoutCommand: Command {
                 node = .tilingContainer(target.workspace.rootTilingContainer)
         }
 
-        let targetDescription = args.toggleBetween.val.first(where: { !node.matchesDescription($0) })
+        let targetDescription = args.toggleBetween.val.first(where: { !node.matchesDescription($0, window: target.windowOrNil) })
             ?? args.toggleBetween.val.first.orDie()
-        if node.matchesDescription(targetDescription) {
+        if node.matchesDescription(targetDescription, window: target.windowOrNil) {
             switch args.failIfNoop {
                 case true: return .fail
                 case false:
@@ -59,6 +59,7 @@ struct LayoutCommand: Command {
                 return changeTilingLayout(io, targetLayout: nil, targetOrientation: .v, node: node)
             case .tiling:
                 guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
+                window.isSticky = false
                 switch node {
                     case .tilingContainer:
                         return .succ // Nothing to do
@@ -74,8 +75,16 @@ struct LayoutCommand: Command {
                 }
             case .floating:
                 guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
-                let workspace = target.workspace
-                window.bindAsFloatingWindow(to: workspace)
+                let ownerWorkspace = window.nodeWorkspace ?? target.workspace
+                window.isSticky = false
+                window.bindAsFloatingWindow(to: ownerWorkspace)
+                if let size = window.lastFloatingSize { window.setAxFrame(nil, size) }
+                return .succ
+            case .sticky:
+                guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
+                let ownerWorkspace = window.nodeWorkspace ?? target.workspace
+                window.bindAsFloatingWindow(to: ownerWorkspace)
+                window.isSticky = true
                 if let size = window.lastFloatingSize { window.setAxFrame(nil, size) }
                 return .succ
         }
@@ -101,7 +110,7 @@ struct LayoutCommand: Command {
 }
 
 extension ConventionalWindowParentCases {
-    fileprivate func matchesDescription(_ layout: LayoutCmdArgs.LayoutDescription) -> Bool {
+    fileprivate func matchesDescription(_ layout: LayoutCmdArgs.LayoutDescription, window: Window?) -> Bool {
         return switch layout {
             case .accordion:   tilingContainerOrNil?.layout == .accordion
             case .tiles:       tilingContainerOrNil?.layout == .tiles
@@ -112,7 +121,8 @@ extension ConventionalWindowParentCases {
             case .h_tiles:     tilingContainerOrNil.map { $0.layout == .tiles && $0.orientation == .h } == true
             case .v_tiles:     tilingContainerOrNil.map { $0.layout == .tiles && $0.orientation == .v } == true
             case .tiling:      tilingContainerOrNil != nil
-            case .floating:    floatingWindowsContainerOrNil != nil
+            case .floating:    floatingWindowsContainerOrNil != nil && window?.isSticky != true
+            case .sticky:      floatingWindowsContainerOrNil != nil && window?.isSticky == true
         }
     }
 }

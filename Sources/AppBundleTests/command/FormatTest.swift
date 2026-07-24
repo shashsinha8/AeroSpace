@@ -182,6 +182,14 @@ final class FormatTest: XCTestCase {
         assertPrimitive(FormatVar.window(.windowLayout).expandFormatVar(obj: obj), .string("floating"))
     }
 
+    func testExpandWindowLayoutSticky() {
+        let workspace = Workspace.get(byName: name)
+        let window = TestWindow.new(id: 1, parent: workspace.floatingWindowsContainer)
+        window.isSticky = true
+        let obj = AeroObj.window(.forTest(window: window, title: nil))
+        assertPrimitive(FormatVar.window(.windowLayout).expandFormatVar(obj: obj), .string("sticky"))
+    }
+
     func testExpandWindowLayoutMacosNativeFullscreen() {
         let workspace = Workspace.get(byName: name)
         let window = TestWindow.new(id: 1, parent: workspace.macOsNativeFullscreenWindowsContainer)

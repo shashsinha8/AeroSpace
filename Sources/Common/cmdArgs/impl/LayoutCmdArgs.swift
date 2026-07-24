@@ -27,14 +27,14 @@ public struct LayoutCmdArgs: CmdArgs {
         case accordion, tiles
         case horizontal, vertical
         case h_accordion, v_accordion, h_tiles, v_tiles
-        case tiling, floating
+        case tiling, floating, sticky
     }
 
     public var root: Bool = false
     public var failIfNoop: Bool = false
 }
 
-public let layoutCommandRootFlagIncompatibilityMsg = "layout command: --root and tiling|floating are incompatible"
+public let layoutCommandRootFlagIncompatibilityMsg = "layout command: --root and tiling|floating|sticky are incompatible"
 
 private func parseToggleBetween(input: PosArgParserInput) -> ParsedCliArgs<[LayoutCmdArgs.LayoutDescription]> {
     let args = input.nonFlagArgs()
@@ -65,7 +65,7 @@ func parseLayoutCmdArgs(_ args: StrArrSlice) -> ParsedCmd<LayoutCmdArgs> {
         .filter(layoutCommandRootFlagIncompatibilityMsg) { cmdArgs in
             !cmdArgs.root || cmdArgs.toggleBetween.val.allSatisfy {
                 switch $0 {
-                    case .floating, .tiling: false
+                    case .floating, .sticky, .tiling: false
                     case .accordion, .h_accordion, .h_tiles,
                          .horizontal, .tiles, .v_accordion, .v_tiles,
                          .vertical: true

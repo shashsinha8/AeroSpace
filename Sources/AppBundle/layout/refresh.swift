@@ -187,6 +187,12 @@ private func layoutWorkspaces() async throws {
         monitorToOptimalHideCorner[monitor.rect.topLeftCorner] = corner
     }
 
+    // Sticky windows can belong to inactive workspaces, but must remain visible
+    // as overlays on their owner workspace's monitor.
+    for window in Workspace.all.flatMap(\.allLeafWindowsRecursive) where window.isSticky {
+        (window as! MacWindow).unhideFromCorner() // todo as!
+    }
+
     // to reduce flicker, first unhide visible workspaces, then hide invisible ones
     for monitor in monitors {
         let workspace = monitor.activeWorkspace
@@ -195,10 +201,15 @@ private func layoutWorkspaces() async throws {
     }
     for workspace in Workspace.all where !workspace.isVisible {
         let corner = monitorToOptimalHideCorner[workspace.workspaceMonitor.rect.topLeftCorner] ?? .bottomRightCorner
-        for window in workspace.allLeafWindowsRecursive {
+        for window in windowsToHideWhenWorkspaceIsInactive(workspace) {
             try await (window as! MacWindow).hideInCorner(corner) // todo as!
         }
     }
+}
+
+@MainActor
+func windowsToHideWhenWorkspaceIsInactive(_ workspace: Workspace) -> [Window] {
+    workspace.allLeafWindowsRecursive.filter { !$0.isSticky }
 }
 
 @MainActor

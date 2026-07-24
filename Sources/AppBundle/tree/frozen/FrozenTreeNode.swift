@@ -35,10 +35,12 @@ struct FrozenContainer: Sendable {
 struct FrozenWindow: Sendable {
     let id: UInt32
     let weight: CGFloat
+    let isSticky: Bool
 
     @MainActor init(_ window: Window) {
         id = window.windowId
         weight = getWeightOrNil(window) ?? 1
+        isSticky = window.isSticky
     }
 }
 

@@ -34,7 +34,7 @@ include::./util/workspace-flag-desc.adoc[]
 
 --root::
 Instead of the focused window, change the layout of the workspace tiling root node.
-When you use this flag, `tiling` and `floating` become invalid values for `<target-layout>`.
+When you use this flag, `tiling`, `floating`, and `sticky` become invalid values for `<target-layout>`.
 
 --fail-if-noop::
 Exit with non-zero exit code if already in the requested layout.
@@ -49,7 +49,8 @@ Possible values:
 * `h_tiles|v_tiles|h_accordion|v_accordion` - Change both tiling layout and orientation in one go
 * `tiles|accordion` - Change tiling layout but preserve orientation
 * `horizontal|vertical` - Change orientation but preserve layout
-* `tiling|floating` - Toggle between floating/tiling mode
+* `tiling|floating|sticky` - Change a window between tiling, floating, and sticky modes.
+  Sticky windows float and remain visible when switching workspaces on their current monitor.
 +
 If several `<target-layout>` are supplied, then the first one that doesn't describe the currently active layout is applied.
 
@@ -58,6 +59,9 @@ include::./util/conditional-examples-header.adoc[]
 
 * Toggle between `floating` and `tiling` layouts (order of args doesn't matter): +
 `aerospace layout floating tiling`
+
+* Toggle between `sticky` and `tiling` layouts (order of args doesn't matter): +
+`aerospace layout sticky tiling`
 
 * Toggle orientation (order of args doesn't matter): +
 `aerospace layout horizontal vertical`

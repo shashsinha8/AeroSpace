@@ -63,7 +63,10 @@ struct FrozenWorkspace: Sendable {
             .singleOrNil()?
             .setActiveWorkspace(workspace)
         for frozenWindow in frozenWorkspace.floatingWindows {
-            MacWindow.get(byId: frozenWindow.id)?.bindAsFloatingWindow(to: workspace)
+            if let window = MacWindow.get(byId: frozenWindow.id) {
+                window.bindAsFloatingWindow(to: workspace)
+                window.isSticky = frozenWindow.isSticky
+            }
         }
         for frozenWindow in frozenWorkspace.macosUnconventionalWindows { // Will get fixed by normalizations
             MacWindow.get(byId: frozenWindow.id)?.bindAsFloatingWindow(to: workspace)
@@ -102,6 +105,7 @@ private func restoreTreeRecursive(frozenContainer: FrozenContainer, parent: NonL
                 // Stop the loop if can't find the window, because otherwise all the subsequent windows will have incorrect index
                 guard let window = MacWindow.get(byId: w.id) else { return false }
                 window.bind(to: container, adaptiveWeight: w.weight, index: index)
+                window.isSticky = w.isSticky
             case .container(let c):
                 // There is no reason to continue
                 if !restoreTreeRecursive(frozenContainer: c, parent: container, index: index) { return false }

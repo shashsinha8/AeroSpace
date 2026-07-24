@@ -247,7 +247,12 @@ private func toLayoutResult(w: Window) -> Result<Primitive, InterVarExpansionErr
     guard let parent = w.parent else { return .failure(.nullParent("NULL-PARENT")) }
     return switch getChildParentRelation(child: w, parent: parent) {
         case .tiling(let tc): .success(.string(toLayoutString(tc: tc)))
-        case .floatingWindow: .success(.string(LayoutCmdArgs.LayoutDescription.floating.rawValue))
+        case .floatingWindow:
+            .success(.string(
+                w.isSticky
+                    ? LayoutCmdArgs.LayoutDescription.sticky.rawValue
+                    : LayoutCmdArgs.LayoutDescription.floating.rawValue,
+            ))
         case .macosNativeFullscreenWindow: .success(.string("macos_native_fullscreen"))
         case .macosNativeHiddenAppWindow: .success(.string("macos_native_window_of_hidden_app"))
         case .macosNativeMinimizedWindow: .success(.string("macos_native_minimized"))

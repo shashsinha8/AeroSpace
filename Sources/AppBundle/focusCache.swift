@@ -7,7 +7,8 @@
     if nativeFocused?.parent is MacosPopupWindowsContainer {
         return
     }
-    if nativeFocused?.windowId != lastKnownNativeFocusedWindowId {
+    let stickyFocusNeedsRefresh = nativeFocused?.isSticky == true && focus.windowOrNil != nativeFocused
+    if nativeFocused?.windowId != lastKnownNativeFocusedWindowId || stickyFocusNeedsRefresh {
         _ = nativeFocused?.focusWindow()
         lastKnownNativeFocusedWindowId = nativeFocused?.windowId
     }
