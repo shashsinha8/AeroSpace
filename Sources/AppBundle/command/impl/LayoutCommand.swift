@@ -59,6 +59,9 @@ struct LayoutCommand: Command {
                 return changeTilingLayout(io, targetLayout: nil, targetOrientation: .v, node: node)
             case .tiling:
                 guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
+                if window.isSticky {
+                    _ = setStickyWindowLevel(window, sticky: false)
+                }
                 window.isSticky = false
                 switch node {
                     case .tilingContainer:
@@ -76,6 +79,9 @@ struct LayoutCommand: Command {
             case .floating:
                 guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
                 let ownerWorkspace = window.nodeWorkspace ?? target.workspace
+                if window.isSticky {
+                    _ = setStickyWindowLevel(window, sticky: false)
+                }
                 window.isSticky = false
                 window.bindAsFloatingWindow(to: ownerWorkspace)
                 if let size = window.lastFloatingSize { window.setAxFrame(nil, size) }
@@ -85,6 +91,7 @@ struct LayoutCommand: Command {
                 let ownerWorkspace = window.nodeWorkspace ?? target.workspace
                 window.bindAsFloatingWindow(to: ownerWorkspace)
                 window.isSticky = true
+                _ = setStickyWindowLevel(window, sticky: true)
                 if let size = window.lastFloatingSize { window.setAxFrame(nil, size) }
                 return .succ
         }

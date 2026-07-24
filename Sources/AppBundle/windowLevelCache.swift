@@ -1,8 +1,39 @@
 import CoreGraphics
+import Common
 import Foundation
+import PrivateApi
 
 @MainActor
 private var cache: [UInt32: MacOsWindowLevel] = [:]
+
+@MainActor
+@discardableResult
+func setStickyWindowLevel(_ window: Window, sticky: Bool) -> Bool {
+    if isUnitTest {
+        window.preStickyWindowLevel = sticky ? 0 : nil
+        return true
+    }
+
+    if sticky {
+        if window.preStickyWindowLevel == nil {
+            window.preStickyWindowLevel = getWindowLevel(for: window.windowId)?.rawValue
+                ?? Int(CGWindowLevelForKey(.normalWindow))
+        }
+        let level = CGWindowLevelForKey(.floatingWindow)
+        guard aerospaceSetWindowLevel(window.windowId, level) else {
+            window.preStickyWindowLevel = nil
+            return false
+        }
+        cache[window.windowId] = .new(windowLevel: Int(level))
+        return true
+    }
+
+    guard let previousLevel = window.preStickyWindowLevel else { return true }
+    guard aerospaceSetWindowLevel(window.windowId, Int32(previousLevel)) else { return false }
+    window.preStickyWindowLevel = nil
+    cache[window.windowId] = .new(windowLevel: previousLevel)
+    return true
+}
 
 @MainActor
 func getWindowLevel(for windowId: UInt32) -> MacOsWindowLevel? {
@@ -45,6 +76,14 @@ enum MacOsWindowLevel: Sendable, Equatable {
             case .string("alwaysOnTopWindow"): .alwaysOnTopWindow
             case .int(let int): .new(windowLevel: Int(exactly: int).orDie())
             default: nil
+        }
+    }
+
+    var rawValue: Int {
+        switch self {
+            case .normalWindow: 0
+            case .alwaysOnTopWindow: 3
+            case .unknown(let windowLevel): windowLevel
         }
     }
 

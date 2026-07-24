@@ -11,6 +11,8 @@ open class Window: TreeNode, Hashable {
     /// Sticky windows remain logically attached to their owner workspace, but are
     /// kept visible when another workspace is activated on the same monitor.
     var isSticky: Bool = false
+    /// The WindowServer level to restore when sticky mode is disabled.
+    var preStickyWindowLevel: Int?
 
     @MainActor
     init(id: UInt32, _ app: any AbstractApp, lastFloatingSize: CGSize?, parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) {
