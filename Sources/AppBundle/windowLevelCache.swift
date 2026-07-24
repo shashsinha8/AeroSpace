@@ -49,14 +49,6 @@ enum MacOsWindowLevel: Sendable, Equatable {
         }
     }
 
-    var rawValue: Int {
-        switch self {
-            case .normalWindow: 0
-            case .alwaysOnTopWindow: 3
-            case .unknown(let windowLevel): windowLevel
-        }
-    }
-
     func toJson() -> Json {
         switch self {
             case .normalWindow: .string("normalWindow")
