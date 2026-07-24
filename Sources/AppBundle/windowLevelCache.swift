@@ -19,7 +19,9 @@ func setStickyWindowLevel(_ window: Window, sticky: Bool) -> Bool {
             window.preStickyWindowLevel = getWindowLevel(for: window.windowId)?.rawValue
                 ?? Int(CGWindowLevelForKey(.normalWindow))
         }
-        let level = CGWindowLevelForKey(.floatingWindow)
+        // Match picture-in-picture behavior: above application floating and
+        // modal-panel windows, but below menus and system overlays.
+        let level = CGWindowLevelForKey(.statusWindow)
         guard aerospaceSetWindowLevel(window.windowId, level) else {
             window.preStickyWindowLevel = nil
             return false
