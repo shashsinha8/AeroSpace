@@ -151,6 +151,10 @@ automatically-unhide-macos-hidden-apps = false
     run = 'move-node-to-workspace t'
 
 [[on-window-detected]]
+    if.app-id = 'com.cmuxterm.app'
+    run = 'move-node-to-workspace t'
+
+[[on-window-detected]]
     if.app-id = 'net.sourceforge.skim-app.skim'
     run = 'move-node-to-workspace t'
 
