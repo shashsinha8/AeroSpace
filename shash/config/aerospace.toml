@@ -11,6 +11,9 @@ persistent-workspaces = [
 
 # Start AeroSpace at login.
 start-at-login = true
+after-startup-command = [
+    'exec-and-forget /Users/shashsinha/code/dev-setup/aerospace/shash/bin/sync-cmux-visibility',
+]
 
 # Normalizations. See: https://nikitabobko.github.io/AeroSpace/guide#normalization
 enable-normalization-flatten-containers = true
@@ -23,6 +26,13 @@ default-root-container-orientation = 'auto'
 
 # Mouse follows focus when the focused monitor changes.
 on-focused-monitor-changed = ['move-mouse monitor-lazy-center']
+
+# cmux treats brightness changes as display reconfigurations and pulls its
+# AeroSpace-hidden window back on-screen. Native-hide it whenever its workspace
+# isn't visible so cmux has no window to "repair".
+exec-on-workspace-change = [
+    '/Users/shashsinha/code/dev-setup/aerospace/shash/bin/sync-cmux-visibility',
+]
 
 # Keep the native macOS Hide application behavior.
 automatically-unhide-macos-hidden-apps = false
@@ -104,7 +114,10 @@ automatically-unhide-macos-hidden-apps = false
     f = ['layout floating tiling', 'mode main']
     backspace = ['close-all-windows-but-current', 'mode main']
 
-    s = ['layout sticky tiling', 'mode main']
+    s = [
+        'exec-and-forget /Users/shashsinha/code/dev-setup/aerospace/shash/bin/toggle-sticky-preserving-layout',
+        'mode main',
+    ]
 
     alt-shift-h = ['join-with left', 'mode main']
     alt-shift-j = ['join-with down', 'mode main']
@@ -133,6 +146,21 @@ automatically-unhide-macos-hidden-apps = false
     p = 2
     t = 1
     z = 1
+
+# Keep detached video players out of the tiling tree.
+[[on-window-detected]]
+    if = 'test %{app-bundle-id} = app.zen-browser.zen && test %{window-title} = Picture-in-Picture'
+    run = 'layout floating'
+
+[[on-window-detected]]
+    if = 'test %{app-bundle-id} = com.apple.TV && test-not %{window-title} = TV'
+    run = 'layout floating'
+
+# Float Finder windows opened for mounted DMG volumes while leaving ordinary
+# Finder folder windows tiled.
+[[on-window-detected]]
+    if.app-id = 'com.apple.finder'
+    run = 'exec-and-forget /Users/shashsinha/code/dev-setup/aerospace/shash/bin/float-disk-image-window'
 
 [[on-window-detected]]
     if.app-id = 'app.zen-browser.zen'

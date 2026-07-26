@@ -1,0 +1,66 @@
+#!/usr/bin/env -S osascript -l JavaScript
+
+ObjC.import("AppKit");
+ObjC.import("Foundation");
+
+const cmuxBundleIdentifier = "com.cmuxterm.app";
+const cmuxWorkspace = "t";
+const aerospacePath = "/opt/homebrew/bin/aerospace";
+
+function visibleWorkspaces() {
+    const task = $.NSTask.alloc.init;
+    const output = $.NSPipe.pipe;
+
+    task.launchPath = aerospacePath;
+    task.arguments = [
+        "list-workspaces",
+        "--all",
+        "--format",
+        "%{workspace}\t%{workspace-is-visible}",
+    ];
+    task.standardOutput = output;
+    task.standardError = $.NSPipe.pipe;
+    task.launch;
+    task.waitUntilExit;
+
+    if (Number(task.terminationStatus) !== 0) {
+        return null;
+    }
+
+    const data = output.fileHandleForReading.readDataToEndOfFile;
+    const text = $.NSString.alloc.initWithDataEncoding(
+        data,
+        $.NSUTF8StringEncoding
+    ).js;
+
+    return new Set(
+        text
+            .trim()
+            .split("\n")
+            .map((line) => line.split("\t"))
+            .filter((fields) => fields.length === 2 && fields[1] === "true")
+            .map((fields) => fields[0])
+    );
+}
+
+function run() {
+    const workspaces = visibleWorkspaces();
+    if (workspaces === null) {
+        return;
+    }
+
+    const applications =
+        $.NSRunningApplication.runningApplicationsWithBundleIdentifier(
+            cmuxBundleIdentifier
+        );
+    if (Number(applications.count) === 0) {
+        return;
+    }
+
+    const cmux = applications.objectAtIndex(0);
+    if (workspaces.has(cmuxWorkspace)) {
+        cmux.unhide;
+    } else {
+        cmux.hide;
+    }
+}

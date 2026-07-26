@@ -1,0 +1,33 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+aerospace=/opt/homebrew/bin/aerospace
+window_id="${AEROSPACE_WINDOW_ID:-}"
+
+[[ "${window_id}" == <-> ]] || exit 0
+
+window_title="$(
+    "${aerospace}" list-windows --all \
+        --format '%{window-id}%{tab}%{window-title}' |
+        /usr/bin/awk -F '\t' -v target="${window_id}" '
+            $1 == target {
+                sub(/^[^\t]*\t/, "")
+                print
+                exit
+            }
+        '
+)"
+[[ -n "${window_title}" ]] || exit 0
+
+volume_path="/Volumes/${window_title}"
+[[ -d "${volume_path}" ]] || exit 0
+
+if /usr/bin/hdiutil info |
+    /usr/bin/awk -F '\t' -v target="${volume_path}" '
+        $NF == target { found = 1 }
+        END { exit(found ? 0 : 1) }
+    '
+then
+    "${aerospace}" layout --window-id "${window_id}" floating
+fi

@@ -1,0 +1,42 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+aerospace=/opt/homebrew/bin/aerospace
+state_dir="${TMPDIR:-/tmp}/shash-aerospace-sticky-layout"
+
+focused="$("${aerospace}" list-windows --focused \
+    --format '%{window-id}%{tab}%{window-layout}')"
+[[ -n "${focused}" ]] || exit 0
+
+IFS=$'\t' read -r window_id current_layout <<< "${focused}"
+[[ "${window_id}" == <-> ]] || exit 1
+
+mkdir -p "${state_dir}"
+chmod 700 "${state_dir}"
+state_file="${state_dir}/${window_id}"
+
+if [[ "${current_layout}" == sticky ]]; then
+    previous_layout=tiling
+    if [[ -f "${state_file}" ]]; then
+        saved_layout="$(<"${state_file}")"
+        if [[ "${saved_layout}" == floating || "${saved_layout}" == tiling ]]; then
+            previous_layout="${saved_layout}"
+        fi
+    fi
+
+    "${aerospace}" layout --window-id "${window_id}" "${previous_layout}"
+    rm -f "${state_file}"
+else
+    if [[ "${current_layout}" == floating ]]; then
+        previous_layout=floating
+    else
+        previous_layout=tiling
+    fi
+
+    print -r -- "${previous_layout}" > "${state_file}"
+    if ! "${aerospace}" layout --window-id "${window_id}" sticky; then
+        rm -f "${state_file}"
+        exit 1
+    fi
+fi
